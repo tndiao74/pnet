@@ -1,5 +1,5 @@
 
-# ProjectCGI
+# Project Net
 # Copyright 2025 Tony McCall
 
 
@@ -71,5 +71,5 @@ elseif (LINUX_BUILD)
 endif()
 
 # CGICC
-find_package(CGICC REQUIRED)
-include_directories (${CGICC_INCLUDE_DIR})
+#find_package(CGICC REQUIRED)
+#include_directories (${CGICC_INCLUDE_DIR})
