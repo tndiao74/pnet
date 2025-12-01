@@ -1,0 +1,111 @@
+
+# docker unsudo
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+
+# list containers with size
+sudo docker container ls -as
+sudo docker images
+
+# remove container
+sudo docker rmi -f hello-world
+
+# pull container
+docker pull hello-world
+
+# rename docker
+docker tag hello-world:latest pnet:latest
+
+# enter container
+sudo apt-get install docker-compose-plugin
+docker run -it pnet sh
+
+# build tools
+sudo apt build-dep linux linux-image-unsigned-$(uname -r)
+sudo apt install libncurses-dev gawk flex bison openssl libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf llvm
+sudo apt install git
+
+# download kernel source
+git clone git://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/noble
+
+# Building the kernel is quite easy. Change your working directory to the root of the kernel source tree
+fakeroot debian/rules clean
+
+wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.58.tar.xz
+tar -xf linux-6.12.58.tar.xz
+make menuconfig
+scripts/config --disable SYSTEM_TRUSTED_KEYS
+scripts/config --disable SYSTEM_REVOCATION_KEYS
+
+# mount img
+mkdir myos
+sudo mount -o loop myos.iso myos
+
+# new img
+genisoimage -v -J -r -V PNET -o pnet.iso iso_input/
+dd if=/dev/zero of=blank_image.img bs=1M count=100
+sudo losetup /dev/loop19 blank_image.img
+sudo fdisk /dev/loop19
+sudo losetup -d /dev/loop19
+
+# find
+find ~ -name "*.iso"
+
+# .ISO
+2684056 * 512f
+1374236672
+sudo mount -o loop,offset=1374236672 /path/to/your/image.img /mnt/mypartition
+
+Disk ../ubuntu-20.04.5-live-server-arm64.iso: 1.28 GiB, 1374760960 bytes, 2685080 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x00000000
+
+Device                                   Boot   Start     End Sectors  Size Id Type
+../ubuntu-20.04.5-live-server-arm64.iso1           64 2684055 2683992  1.3G cd unknown
+../ubuntu-20.04.5-live-server-arm64.iso2      2684056 2685079    1024  512K ef EFI (FAT-12/16/32)
+master@master-virtual-machine:~/git/pnet/iso/ubuntu.iso$
+
+2684056
+sudo mount -o loop,offset=1374236672 ../ubuntu-20.04.5-live-server-arm64.iso p2
+
+# mount ubuntu ram fs
+unmkinitramfs -v ./p1/casper/initrd initrd/
+
+# repack ram fs
+cd initrd
+find . -print0 | cpio --null -ov --format=newc > ../initramfs.img
+cd ..
+gzip initramfs.img
+
+# pack .iso (1.5 GB)
+(1024*1000*1000*1.5) / 512
+dd if=/dev/zero of=pnet.iso bs=512 count=3000000
+
+# make partitions
+gdisk pnet.iso (create a new empty GUID partition table (GPT))
+
+# fdisk pnet.iso (list partitions)
+Disk pnet.iso: 1.43 GiB, 1536000000 bytes, 3000000 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+# mount 
+sudo losetup --offset 1048576 --sizelimit 1431306240 /dev/loop5 pnet.iso
+sudo mount -o loop,offset=1048576 pnet.iso p1_test
+
+genisoimage -v -J -r -V PNET -o pnet.iso -b boot.img ../pnet.iso/p1
+
+xorriso -as mkisofs -iso-level 3 -r -V "pnet" -J -joliet-long -append_partition 2 0xef boot/ -partition_cyl_align all -o pnet.iso ../pnet.iso/p1
+
+xorriso -as mkisofs -iso-level 3 -r -V "pnet" -J -joliet-long -append_partition 2 0xef boot/ -partition_cyl_align all -o pnet.iso ../pnet.iso/p1
+
+qemu-system-x86_64 -kernel ../pnet.iso/p1/casper/vmlinuz -initrd ../pnet.iso/p1/casper/initrd
+
+sudo grub-mkrescue -o pnet.iso data/boot
+
+# ubuntu-focal-mini-amd64.iso

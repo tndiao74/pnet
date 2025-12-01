@@ -16,4 +16,4 @@ include (./_cmake/env.cmake)
 #######################################################################
 
 #add_subdirectory (action)
-add_subdirectory (pnetc)
+add_subdirectory (boot)
