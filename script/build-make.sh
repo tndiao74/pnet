@@ -6,5 +6,5 @@ make
 cd ../script
 
 # copy boot loader
-sudo cp ../build/boot/pnetb ../iso/build/initrd/bin/
+#sudo cp ../build/boot/pnetb ../iso/build/initrd/bin/
 
