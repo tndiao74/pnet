@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# initramfs hook script header
+PREREQ=""
+prereqs()
+{
+	echo "$PREREQ"
+}
+case $1 in
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+echo "Welcom to pnet initramfs client system."
+
+# open a shell
+sh

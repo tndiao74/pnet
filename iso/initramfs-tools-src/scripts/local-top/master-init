@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# initramfs hook script header
+PREREQ=""
+prereqs()
+{
+	echo "$PREREQ"
+}
+case $1 in
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+. /usr/share/initramfs-tools/scripts/functions
+configure_networking
+
+exit 0
