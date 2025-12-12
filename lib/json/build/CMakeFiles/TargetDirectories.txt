@@ -1,0 +1,8 @@
+/home/master/git/pnet/lib/json/build/CMakeFiles/package.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/package_source.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/edit_cache.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/rebuild_cache.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/list_install_components.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/install.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/install/local.dir
+/home/master/git/pnet/lib/json/build/CMakeFiles/install/strip.dir
