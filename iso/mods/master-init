@@ -13,7 +13,15 @@ prereqs)
 	;;
 esac
 
-. /usr/share/initramfs-tools/scripts/functions
+. /scripts/functions
 configure_networking
+
+CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+
+echo "Welcome to pnet initramfs client system."
+echo "Test"
+
+# open a shell
+sh
 
 exit 0

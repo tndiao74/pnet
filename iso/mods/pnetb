@@ -14,6 +14,12 @@ esac
 # Begin real processing below this line
 
 # Copy binary and dependencies
-copy_exec $CONFDIR/../../build/boot/pnetb /sbin
+copy_exec /home/master/git/pnet/build/boot/pnetb /sbin
+copy_exec /bin/ping /bin
+copy_exec /bin/curl /bin
+
+# copy certs
+mkdir -p ${DESTDIR}/etc/ssl/certs
+cp /etc/ssl/certs/ca-certificates.crt ${DESTDIR}/etc/ssl/certs
 
 exit 0

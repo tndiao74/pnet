@@ -1,38 +1,73 @@
 #!/bin/sh
 
-isoDir=../iso
-loopDev=loop19
+# source env
+. ./env.sh
 
-# make a local copy of the initramfs-tools
-copy_initramfs() {
+# unpack initrd image
+pack_iso() {
 
-    sudo rm -rf $isoDir/initramfs-tools
-    mkdir $isoDir/initramfs-tools
-    sudo rsync -rva /etc/initramfs-tools/ $isoDir/initramfs-tools
-
-    # overwrite with modifications
-    sudo rsync -rva $isoDir/initramfs-tools-src/ $isoDir/initramfs-tools
+    # build bootable iso
+    sudo grub-mkrescue -v -o $diriso/pnet.iso $diriso/data
 
     return 0
 }
 
-# make new initramfs
-make_initramfs() {
-    # overwrite existing initrd from .iso with ours
-    sudo mkinitramfs -v -d $isoDir/initramfs-tools -o $isoDir/data/initrd.gz
+# run mkinitramfs to make initial file system image
+make_initrd() {
+
+    # backup and overwrite configuration files
+    scriptPath="init-bottom"
+    sudo mv /etc/initramfs-tools/initramfs.conf /etc/initramfs-tools/initramfs.conf.bk
+    sudo cp $diriso/mods/initramfs.conf /etc/initramfs-tools
+    sudo cp $diriso/mods/pnetb /etc/initramfs-tools/hooks
+    sudo cp $diriso/mods/master-init /etc/initramfs-tools/scripts/$scriptPath/master-init
+
+    # build the ram fs img
+    sudo mkinitramfs -v -o $diriso/initrd.img
+
+    # restore
+    sudo mv /etc/initramfs-tools/initramfs.conf.bk /etc/initramfs-tools/initramfs.conf
+    sudo rm -rf /etc/initramfs-tools/hooks/pnetb
+    sudo rm -rf /etc/initramfs-tools/scripts/$scriptPath/master-init
+
     return 0
 }
 
-# reconfigure grub
-make_grub() {
-    # overwrite existing grub config
-    sudo cp $isoDir/grub-src/boot/grub/grub.cfg $isoDir/data/boot/grub/grub.cfg
-    sudo chmod -w $isoDir/data/boot/grub/grub.cfg
+# unpack initrd image
+unpack_initrd() {
+
+    sudo rm -rf $diriso/initrd
+    sudo mkdir $diriso/initrd
+    sudo unmkinitramfs $diriso/initrd.img $diriso/initrd
+
     return 0
 }
 
-copy_initramfs
-make_initramfs
-make_grub
+# make iso data
+make_data() {
+
+    sudo rm -rf $diriso/data
+    sudo mkdir $isoData/data
+
+    # grub config
+    sudo mkdir -p $diriso/data/boot/grub
+    sudo cp $diriso/mods/grub.cfg $diriso/data/boot/grub
+
+    # initrd and kernel
+    sudo cp $diriso/initrd.img $diriso/data/initrd
+    sudo cp /boot/vmlinuz $diriso/data/linux
+    
+    return 0
+}
+
+# make the iso
+make_initrd
+#unpack_initrd
+make_data
+pack_iso
+
+echo ""
+echo "*** ISO FINISHED ***"
+echo ""
 
 exit 0
