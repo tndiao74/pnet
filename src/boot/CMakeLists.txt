@@ -30,9 +30,12 @@ add_executable (${TARGET_NAME} ${SRCS})
 #target_link_libraries(${TARGET_NAME} -static)
 
 # libraries
-#target_link_libraries(${TARGET_NAME} pnet CURL zlib OpenSSL crypto psl)
-#target_link_libraries(${TARGET_NAME} pnet CURL OpenSSL crypto zlib psl)
-target_link_libraries(${TARGET_NAME} pnet curl ssl crypto)
+if(WINDOWS_BUILD)
+	target_link_libraries(${TARGET_NAME} pnet ${CURL_LINK_LIBRARIES})
+endif()
+if(LINUX_BUILD)
+	target_link_libraries(${TARGET_NAME} pnet curl ssl crypto)
+endif()
 
 # use a pch in windows
 if (MSVC)
