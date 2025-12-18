@@ -74,22 +74,6 @@ endif()
 find_package(nlohmann_json REQUIRED)
 include_directories (${NLOHMANN_JSON_INCLUDE_DIR})
 
-## crpyto
-#find_package(crypto REQUIRED)
-#include_directories (${CRYPTO_INCLUDE_DIR})
-#
-## OpenSSL
-#find_package(OpenSSL REQUIRED)
-#include_directories (${OPENSSL_INCLUDE_DIR})
-#
-## psl
-#find_package(psl REQUIRED)
-#include_directories (${PSL_INCLUDE_DIR})
-#
-## libzip
-#find_package(zlib REQUIRED)
-#include_directories (${ZLIB_INCLUDE_DIR})
-#
 # CURL
 find_package(CURL REQUIRED)
 include_directories (${CURL_INCLUDE_DIR})

@@ -13,6 +13,7 @@
 #include <string>
 #include <memory>
 #include <cstring>
+#include <sstream>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ using json = nlohmann::json;
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/bio.h>
+#include <openssl/ssl.h>
 
 // zlib
 #include <zlib.h>

@@ -20,7 +20,7 @@
 // log
 ///////////////////////////////////////////////////////////////////////
 
-const size_t gLogBufMax = 2048;
+const size_t gLogBufMax = 8192;
 char gLogBuf[gLogBufMax] = { 0 };
 void _log(const char* msg, ...)
 {
@@ -88,7 +88,7 @@ void _log(const char* msg, ...)
 
 	// log file
 	std::ofstream myfile;
-	myfile.open("log.txt");
+	myfile.open("log.txt", std::ios_base::app);
 	myfile << outBuf;
 	myfile.close();
 

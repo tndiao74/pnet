@@ -26,6 +26,10 @@ public:
     static size_t buf0Len;
     static uint8_t buf1[bufMax];
     static size_t buf1Len;
+    static uint8_t buf2[bufMax];
+    static size_t buf2Len;
+    static uint8_t buf3[bufMax];
+    static size_t buf3Len;
 };
 
 
@@ -71,10 +75,11 @@ private:
 
 public:
 
-    static size_t Init(const unsigned char* key, size_t keyMax, const unsigned char* iv, size_t ivMax);
+    static size_t Init(const std::string& key, const std::string& iv);
     static size_t Destroy();
     static size_t Encrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax);
     static size_t Decrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax);
+    static std::string SHA1Hash(const std::string& str);
 };
 
 
@@ -149,4 +154,51 @@ public:
     static void Add(const json& data, uint16_t code);
     static std::string End();
     static void Decode(const std::string& param, _requestDecodeEvent cb = nullptr);
+    static std::string EncryptPairAndEncode(const std::string& keyPub, const std::string& str);
+    static std::string DecodeAndDecryptPair(const std::string& keyPri, const std::string& str);
+    static std::string EncryptAndEncode(const std::string& key, const std::string& str);
+    static std::string DecodeAndDecrypt(const std::string& key, const std::string& str);
+};
+
+
+///////////////////////////////////////////////////////////////////////
+// Database
+///////////////////////////////////////////////////////////////////////
+
+class DB
+{
+    // data
+private:
+
+
+public:
+    static json sql_select(const std::string& fields, const std::string& from, const std::string& where);
+};
+
+///////////////////////////////////////////////////////////////////////
+// System
+///////////////////////////////////////////////////////////////////////
+
+class System
+{
+    // data
+private:
+#if WINDOWS
+    static HANDLE g_hChildStd_IN_Rd;
+    static HANDLE g_hChildStd_IN_Wr;
+    static HANDLE g_hChildStd_OUT_Rd;
+    static HANDLE g_hChildStd_OUT_Wr;
+    static HANDLE g_hInputFile;
+    static const size_t BUFSIZE = 4096;
+    static CHAR chBuf[BUFSIZE];
+
+    static void CreateChildProcess(const std::string& cmd);
+    static void WriteToPipe(void);
+    static void ReadFromPipe(std::string& result);
+    static void ErrorExit(PCTSTR);
+#endif
+
+public:
+    static std::string exec(const std::string& cmd);
+    static std::vector<std::string> tokenize_whitespace(const std::string& str);
 };

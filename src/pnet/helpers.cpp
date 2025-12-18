@@ -12,7 +12,8 @@
 ///////////////////////////////////////////////////////////////////////
 
 #include "helpers.h"
-
+#include "core.h"
+#include "log.h"
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -171,6 +172,50 @@ std::string Request::End()
     return ret;
 }
 
+std::string Request::EncryptPairAndEncode(const std::string& keyPub, const std::string& str)
+{
+    // encrypt session key with public key
+    CryptPair::Init(keyPub, "");
+    Buf::buf2Len = CryptPair::Encrypt((uint8_t*)str.c_str(), str.length(), Buf::buf2, Buf::bufMax);
+    Buf::buf3Len = Encode::EncodeBase64(Buf::buf2, Buf::buf2Len, Buf::buf3, Buf::bufMax);
+    Buf::buf3[Buf::buf3Len] = 0;
+    return std::string((const char*)Buf::buf3);
+}
+
+std::string Request::DecodeAndDecryptPair(const std::string& keyPri, const std::string& str)
+{
+    // get session key bytes
+    Buf::buf2Len = Encode::DecodeBase64((uint8_t*)str.c_str(), str.length(), Buf::buf2, Buf::bufMax);
+
+    // unencrypt bytes with out private key
+    CryptPair::Init("", keyPri);
+    Buf::buf3Len = CryptPair::Decrypt((uint8_t*)Buf::buf2, Buf::buf2Len, Buf::buf3, Buf::bufMax);
+    Buf::buf3[Buf::buf3Len] = 0;
+    return std::string((const char*)Buf::buf3);
+}
+
+std::string Request::EncryptAndEncode(const std::string& key, const std::string& str)
+{
+    // encrypt with session key
+    Crypt::Init(key.substr(0, 32), key.substr(32, 16));
+    Buf::buf0Len = Crypt::Encrypt((uint8_t*)str.c_str(), str.length(), Buf::buf0, Buf::bufMax);
+    Buf::buf1Len = Encode::EncodeBase64(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax);
+    Buf::buf1[Buf::buf1Len] = 0;
+    return std::string((const char*)Buf::buf1);
+}
+
+std::string Request::DecodeAndDecrypt(const std::string& key, const std::string& str)
+{
+    // unencrypt password with session key
+    Crypt::Init(key.substr(0, 32), key.substr(32, 16));
+
+    // grab encrypted bytes
+    Buf::buf0Len = Encode::DecodeBase64((uint8_t*)str.c_str(), str.length(), Buf::buf0, Buf::bufMax);
+    Buf::buf1Len = Crypt::Decrypt(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax);
+    Buf::buf1[Buf::buf1Len] = 0;
+    return std::string((const char*)Buf::buf1);
+}
+
 
 ///////////////////////////////////////////////////////////////////////
 // Buf
@@ -180,6 +225,10 @@ uint8_t Buf::buf0[Buf::bufMax] = { 0, };
 size_t Buf::buf0Len = 0;
 uint8_t Buf::buf1[Buf::bufMax] = { 0, };
 size_t Buf::buf1Len = 0;
+uint8_t Buf::buf2[Buf::bufMax] = { 0, };
+size_t Buf::buf2Len = 0;
+uint8_t Buf::buf3[Buf::bufMax] = { 0, };
+size_t Buf::buf3Len = 0;
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -242,6 +291,7 @@ std::string Encode::EncodeBase64(const std::string& bufIn)
         size_t len = EncodeBase64((uint8_t*)bufIn.c_str(), bufIn.length() + 1, Buf::buf0, Buf::bufMax);
         if (len > 0)
         {
+            Buf::buf0[len] = 0;
             ret = (const char*)Buf::buf0;
         }
     }
@@ -326,9 +376,9 @@ size_t Encode::DecodeBase64(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufO
 
 Crypt::cipherAES Crypt::ctx = { 0, 0 };
 
-size_t Crypt::Init(const unsigned char* key, size_t keyMax, const unsigned char* iv, size_t ivMax)
+size_t Crypt::Init(const std::string& key, const std::string& iv)
 {
-    assert(keyMax == 32 && ivMax == 16);
+    assert(key.length() == 32 && iv.length() == 16);
 
     // wipe out any previous ciphers
     Destroy();
@@ -339,14 +389,14 @@ size_t Crypt::Init(const unsigned char* key, size_t keyMax, const unsigned char*
     {
         // initialize the encryption operation
         // Using EVP_CipherInit_ex is recommended for modern OpenSSL
-        EVP_CipherInit_ex(ctx.e, EVP_aes_256_cbc(), NULL, key, iv, 1 /* Encrypt */);
+        EVP_CipherInit_ex(ctx.e, EVP_aes_256_cbc(), NULL, (unsigned char*)key.c_str(), (unsigned char*)iv.c_str(), 1 /* Encrypt */);
     }
     ctx.d = EVP_CIPHER_CTX_new();
     if (ctx.d != NULL)
     {
         // initialize the encryption operation
         // Using EVP_CipherInit_ex is recommended for modern OpenSSL
-        EVP_CipherInit_ex(ctx.d, EVP_aes_256_cbc(), NULL, key, iv, 0);
+        EVP_CipherInit_ex(ctx.d, EVP_aes_256_cbc(), NULL, (unsigned char*)key.c_str(), (unsigned char*)iv.c_str(), 0);
     }
 
     return 1;
@@ -405,8 +455,29 @@ size_t Crypt::Decrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, si
         {
             return (size_t)tmpLen;
         }
+        else
+        {
+            std::string serr = ERR_error_string(ERR_get_error(), NULL);
+            _log("%s", serr.c_str());
+        }
     }
     return 0;
+}
+
+std::string Crypt::SHA1Hash(const std::string& str)
+{
+    unsigned char hash[SHA_DIGEST_LENGTH]; // SHA_DIGEST_LENGTH is 20 bytes
+
+    // Calculate the SHA-1 hash
+    // SHA1(data, len, md)
+    SHA1(reinterpret_cast<const unsigned char*>(str.c_str()),
+        str.length(),
+        hash); // The hash is placed in the 'hash' array
+
+    Buf::buf0Len = Encode::EncodeBase64((uint8_t*)hash, SHA_DIGEST_LENGTH, Buf::buf0, Buf::bufMax);
+    Buf::buf0[Buf::buf0Len] = 0;
+
+    return std::string((const char*)Buf::buf0);
 }
 
 
@@ -543,7 +614,7 @@ size_t CryptPair::Decrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut
         return 0;
 
     size_t plen = RSA_private_decrypt((int)bufInLen, bufIn, bufOut, rsa, RSA_PKCS1_OAEP_PADDING);
-    
+
     return plen;
 }
 
@@ -675,4 +746,314 @@ json JSON::DecodeAndUncompress(const std::string bufIn)
         }
     }
     return j;
+}
+
+///////////////////////////////////////////////////////////////////////
+// Database
+///////////////////////////////////////////////////////////////////////
+
+json DB::sql_select(const std::string& strfields, const std::string& from, const std::string& where)
+{
+    const std::string mysqlPath = "\"C:\\Program Files\\MySQL\\MySQL Server 8.3\\bin\\mysql\"";
+    auto fields = System::tokenize_whitespace(strfields);
+
+    std::stringstream ss;
+    ss << mysqlPath;
+    ss << " -u root -pkkxrd pnet -s -e \"SELECT JSON_OBJECT(";
+    for (size_t i = 0; i < fields.size(); i++)
+    {
+        const std::string& field = fields[i];
+        
+        ss << "'" << field << "', " << field;
+        if (i < fields.size() - 1)
+        {
+            ss << ", ";
+        }
+        // mysql -u root -pkkxrd pnet -s -e "SELECT JSON_OBJECT('ID', ID, 'username', username) AS json_output FROM user;"
+    }
+    ss << ") AS json_output FROM " << from << " WHERE " << where << ";" << "\"";
+
+    // run sql
+    std::string cmd = ss.str();
+    //std::cout << cmd;
+    _log("cmd = %s", cmd.c_str());
+    std::string sresultf = System::exec(cmd);
+
+    // grab json
+    size_t ji = sresultf.find_first_of('{', 0);
+
+    json j;
+    if (ji != std::string::npos)
+    {
+        try
+        {
+            std::string jsresult = sresultf.substr(ji, sresultf.length() - ji);
+            printf("out1:%s\n", jsresult.c_str());
+            j = json::parse(jsresult);
+        }
+        catch (std::exception ex)
+        {
+            _log("DB::sql_select: no results returned");
+        }
+    }
+
+    return j;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// System
+///////////////////////////////////////////////////////////////////////
+#if WINDOWS
+
+HANDLE System::g_hChildStd_IN_Rd = NULL;
+HANDLE System::g_hChildStd_IN_Wr = NULL;
+HANDLE System::g_hChildStd_OUT_Rd = NULL;
+HANDLE System::g_hChildStd_OUT_Wr = NULL;
+HANDLE System::g_hInputFile = NULL;
+CHAR System::chBuf[BUFSIZE];
+
+void System::CreateChildProcess(const std::string& cmd)
+// Create a child process that uses the previously created pipes for STDIN and STDOUT.
+{
+    static CHAR chCmd[BUFSIZE];
+    _szcpy(chCmd, BUFSIZE, cmd.c_str());
+    TCHAR* szCmdline = chCmd;
+    PROCESS_INFORMATION piProcInfo;
+    STARTUPINFO siStartInfo;
+    BOOL bSuccess = FALSE;
+
+    // Set up members of the PROCESS_INFORMATION structure. 
+
+    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+
+    // Set up members of the STARTUPINFO structure. 
+    // This structure specifies the STDIN and STDOUT handles for redirection.
+
+    ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+    siStartInfo.cb = sizeof(STARTUPINFO);
+    siStartInfo.hStdError = g_hChildStd_OUT_Wr;
+    siStartInfo.hStdOutput = g_hChildStd_OUT_Wr;
+    siStartInfo.hStdInput = g_hChildStd_IN_Rd;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+    // Create the child process. 
+
+    bSuccess = CreateProcess(NULL,
+        szCmdline,     // command line 
+        NULL,          // process security attributes 
+        NULL,          // primary thread security attributes 
+        TRUE,          // handles are inherited 
+        0,             // creation flags 
+        NULL,          // use parent's environment 
+        NULL,          // use parent's current directory 
+        &siStartInfo,  // STARTUPINFO pointer 
+        &piProcInfo);  // receives PROCESS_INFORMATION 
+
+    // If an error occurs, exit the application. 
+    if (!bSuccess)
+        ErrorExit(TEXT("CreateProcess"));
+    else
+    {
+        // Close handles to the child process and its primary thread.
+        // Some applications might keep these handles to monitor the status
+        // of the child process, for example. 
+
+        CloseHandle(piProcInfo.hProcess);
+        CloseHandle(piProcInfo.hThread);
+
+        // Close handles to the stdin and stdout pipes no longer needed by the child process.
+        // If they are not explicitly closed, there is no way to recognize that the child process has ended.
+
+        CloseHandle(g_hChildStd_OUT_Wr);
+        CloseHandle(g_hChildStd_IN_Rd);
+    }
+}
+
+void System::ErrorExit(PCTSTR lpszFunction)
+
+// Format a readable error message, display a message box, 
+// and exit from the application.
+{
+    LPVOID lpMsgBuf;
+    LPVOID lpDisplayBuf;
+    DWORD dw = GetLastError();
+
+    FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        dw,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&lpMsgBuf,
+        0, NULL);
+
+    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
+        (lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR));
+    printf((LPTSTR)lpDisplayBuf,
+        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+        TEXT("%s failed with error %d: %s"),
+        lpszFunction, dw, lpMsgBuf);
+    MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK);
+
+    LocalFree(lpMsgBuf);
+    LocalFree(lpDisplayBuf);
+
+    g_hChildStd_IN_Rd = NULL;
+    g_hChildStd_IN_Wr = NULL;
+    g_hChildStd_OUT_Rd = NULL;
+    g_hChildStd_OUT_Wr = NULL;
+    g_hInputFile = NULL;
+}
+
+void System::WriteToPipe(void)
+
+// Read from a file and write its contents to the pipe for the child's STDIN.
+// Stop when there is no more data. 
+{
+    DWORD dwRead, dwWritten;
+    BOOL bSuccess = FALSE;
+#if 0
+    for (;;)
+    {
+        bSuccess = ReadFile(g_hInputFile, chBuf, BUFSIZE, &dwRead, NULL);
+        if (!bSuccess || dwRead == 0) break;
+
+        bSuccess = WriteFile(g_hChildStd_IN_Wr, chBuf, dwRead, &dwWritten, NULL);
+        if (!bSuccess) break;
+    }
+#endif
+    // Close the pipe handle so the child process stops reading. 
+
+    if (!CloseHandle(g_hChildStd_IN_Wr))
+        ErrorExit(TEXT("StdInWr CloseHandle"));
+}
+
+void System::ReadFromPipe(std::string& result)
+
+// Read output from the child process's pipe for STDOUT
+// and write to the parent process's pipe for STDOUT. 
+// Stop when there is no more data. 
+{
+    DWORD dwRead, dwWritten;
+    BOOL bSuccess = FALSE;
+    HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    for (;;)
+    {
+        bSuccess = ReadFile(g_hChildStd_OUT_Rd, chBuf, BUFSIZE, &dwRead, NULL);
+        printf("out:\n%s", chBuf);
+        if (!bSuccess || dwRead == 0) break;
+        result = chBuf;
+    }
+}
+
+std::string System::exec(const std::string& cmd)
+{
+    SECURITY_ATTRIBUTES saAttr;
+
+    printf("\n->Start of parent execution.\n");
+
+    // Set the bInheritHandle flag so pipe handles are inherited. 
+
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+
+    // Create a pipe for the child process's STDOUT. 
+
+    if (!CreatePipe(&g_hChildStd_OUT_Rd, &g_hChildStd_OUT_Wr, &saAttr, 0))
+        ErrorExit(TEXT("StdoutRd CreatePipe"));
+
+    // Ensure the read handle to the pipe for STDOUT is not inherited.
+
+    if (!SetHandleInformation(g_hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0))
+        ErrorExit(TEXT("Stdout SetHandleInformation"));
+
+    // Create a pipe for the child process's STDIN. 
+
+    if (!CreatePipe(&g_hChildStd_IN_Rd, &g_hChildStd_IN_Wr, &saAttr, 0))
+        ErrorExit(TEXT("Stdin CreatePipe"));
+
+    // Ensure the write handle to the pipe for STDIN is not inherited. 
+
+    if (!SetHandleInformation(g_hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0))
+        ErrorExit(TEXT("Stdin SetHandleInformation"));
+
+    // Create the child process. 
+
+    CreateChildProcess(cmd);
+
+    // Get a handle to an input file for the parent. 
+    // This example assumes a plain text file and uses string output to verify data flow. 
+
+    // Write to the pipe that is the standard input for a child process. 
+    // Data is written to the pipe's buffers, so it is not necessary to wait
+    // until the child process is running before writing data.
+
+    WriteToPipe();
+    printf("\n->Contents of %s written to child STDIN pipe.\n", cmd.c_str());
+
+    // Read from pipe that is the standard output for child process. 
+
+    printf("\n->Contents of child process STDOUT:\n\n");
+    std::string res = "";
+    ReadFromPipe(res);
+
+    printf("\n->End of parent execution.\n");
+
+    // The remaining open handles are cleaned up when this process terminates. 
+    // To avoid resource leaks in a larger application, close handles explicitly. 
+
+
+    g_hChildStd_IN_Rd = NULL;
+    g_hChildStd_IN_Wr = NULL;
+    g_hChildStd_OUT_Rd = NULL;
+    g_hChildStd_OUT_Wr = NULL;
+    g_hInputFile = NULL;
+
+    return res;
+#if 0
+    // Define the appropriate popen and pclose functions based on the operating system
+#ifdef _WIN32
+    //FILE* pipe = _popen(cmd.c_str(), "r");
+    FILE* pipe = _popen("ECHO ECHO", "r");
+#else
+    FILE* pipe = popen(cmd, "r");
+#endif
+
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+
+    char buffer[128];
+    std::string result = "";
+
+    // Read the output a line at a time and append it to the result string
+    while (fgets(buffer, sizeof buffer, pipe) != NULL) {
+        result += buffer;
+    }
+
+    // Close the pipe and get the return code
+#ifdef _WIN32
+    _pclose(pipe);
+#else
+    pclose(pipe);
+#endif
+#endif
+}
+#endif
+
+std::vector<std::string> System::tokenize_whitespace(const std::string& str)
+{
+    std::vector<std::string> tokens;
+    std::istringstream iss(str);
+    std::string token;
+
+    while (iss >> token) { // The extraction operator >> uses whitespace as a delimiter
+        tokens.push_back(token);
+    }
+
+    return tokens;
 }

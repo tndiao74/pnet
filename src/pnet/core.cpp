@@ -58,7 +58,7 @@ void _szcat(char* outBuf, size_t outBufSize, const char* srcBuf)
 	
 }
 
-const size_t gPrintFBufMax = 2048;
+const size_t gPrintFBufMax = 8192;
 char gPrintFBuf[gPrintFBufMax] = { 0 };
 char* _szprintf(const char* format, ...)
 {

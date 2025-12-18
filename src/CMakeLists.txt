@@ -17,5 +17,5 @@ include (./_cmake/env.cmake)
 
 #add_subdirectory (action)
 add_subdirectory(pnet)
-add_subdirectory (boot)
-add_subdirectory (server)
+add_subdirectory (pnetb)
+add_subdirectory (pnets)
