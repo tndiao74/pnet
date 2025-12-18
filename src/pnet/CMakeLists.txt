@@ -10,8 +10,6 @@ set (TARGET_NAME pnet)
 set (SRCS
 	stdafx.h
 	stdafx.cpp
-	base64.h
-	base64.cpp
 	helpers.h
 	helpers.cpp
 	log.h

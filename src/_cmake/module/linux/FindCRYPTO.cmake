@@ -1,0 +1,10 @@
+
+# Project Net
+# Copyright 2025 Tony McCall
+
+set(CRYPTO_FOUND TRUE)
+set(CRYPTO_INCLUDE_DIR /usr/include)
+set(CRYPTO_LINK_LIBRARIES crypto)
+
+add_library (CRYPTO SHARED IMPORTED)
+set_property (TARGET CRYPTO PROPERTY IMPORTED_IMPLIB ${CRYPTO_LINK_LIBRARIES})

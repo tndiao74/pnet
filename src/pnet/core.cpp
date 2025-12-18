@@ -1,62 +1,3 @@
-#include <iostream>
-#include <string>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
-
-// Note: RSA_* functions are deprecated in OpenSSL 3.0+. Use EVP_* functions for new applications.
-
-int main() {
-	int ret = 0;
-	RSA* rsa = nullptr;
-	BIGNUM* bn = nullptr;
-	// The message must be smaller than the key size minus padding overhead (e.g., < 214 bytes for a 2048-bit key with OAEP).
-	unsigned char plaintext[] = "This is a short secret message!";
-	unsigned char* encrypted = nullptr;
-	unsigned char* decrypted = nullptr;
-	int encrypted_length, decrypted_length;
-
-	// 1. Generate RSA Keys (2048 bits)
-	bn = BN_new();
-	ret = BN_set_word(bn, RSA_F4); // Common public exponent
-	if (ret != 1) return 1;
-	rsa = RSA_new();
-	ret = RSA_generate_key_ex(rsa, 2048, bn, nullptr);
-	if (ret != 1) return 1;
-	BN_free(bn);
-
-	// 2. Allocate memory for encrypted/decrypted data
-	// The encrypted size will be equal to the RSA key size in bytes
-	encrypted_length = RSA_size(rsa);
-	encrypted = (unsigned char*)malloc(encrypted_length);
-	if (!encrypted) return 1;
-	decrypted = (unsigned char*)malloc(encrypted_length); // Max potential size
-
-	// 3. Encrypt with Public Key (Recommended padding: RSA_PKCS1_OAEP_PADDING)
-	int public_encrypt_len = RSA_public_encrypt(sizeof(plaintext), plaintext, encrypted, rsa, RSA_PKCS1_OAEP_PADDING);
-	if (public_encrypt_len == -1) {
-		ERR_print_errors_fp(stderr);
-		return 1;
-	}
-	std::cout << "Encryption successful. Encrypted length: " << public_encrypt_len << " bytes." << std::endl;
-
-	// 4. Decrypt with Private Key
-	int private_decrypt_len = RSA_private_decrypt(public_encrypt_len, encrypted, decrypted, rsa, RSA_PKCS1_OAEP_PADDING);
-	if (private_decrypt_len == -1) {
-		ERR_print_errors_fp(stderr);
-		return 1;
-	}
-	decrypted[private_decrypt_len] = '\0'; // Null-terminate the decrypted string
-	std::cout << "Decryption successful. Decrypted message: " << decrypted << std::endl;
-
-	// 5. Cleanup
-	free(encrypted);
-	free(decrypted);
-	RSA_free(rsa);
-	EVP_cleanup(); // For older versions; might not be needed for OpenSSL 1.1.1+
-
-	return 0;
-}
 
 // Project Net
 // Copyright 2021 Tony McCall
@@ -88,17 +29,33 @@ size_t _szlen(const char* buf)
 
 void _szncpy(char* outBuf, size_t outBufSize, const char* srcBuf, size_t num)
 {
+#if WINDOWS
 	strncpy_s(outBuf, outBufSize, srcBuf, num);
+#endif
+#if LINUX
+	strncpy(outBuf, srcBuf, num);
+#endif
 }
 	
 void _szcpy(char* outBuf, size_t outBufSize, const char* srcBuf)
 {
+#if WINDOWS
 	strcpy_s(outBuf, outBufSize, srcBuf);
+#endif
+#if LINUX
+	strcpy(outBuf, srcBuf);
+#endif
 }
 
 void _szcat(char* outBuf, size_t outBufSize, const char* srcBuf)
 {
+#if WINDOWS
 	strcat_s(outBuf, outBufSize, srcBuf);
+#endif
+#if LINUX
+	strcat(outBuf, srcBuf);
+#endif
+	
 }
 
 const size_t gPrintFBufMax = 2048;
@@ -107,7 +64,12 @@ char* _szprintf(const char* format, ...)
 {
 	va_list vlist;
 	va_start(vlist, format);
+#if WINDOWS
 	vsnprintf_s(&gPrintFBuf[0], gPrintFBufMax, gPrintFBufMax, format, vlist);
+#endif
+#if LINUX
+	vsnprintf(&gPrintFBuf[0], gPrintFBufMax, format, vlist);
+#endif
 	va_end(vlist);
 	return gPrintFBuf;
 }
@@ -116,22 +78,34 @@ void _szprintf(char* outBuf, size_t outBufSize, const char* format, ...)
 {
 	va_list vlist;
 	va_start(vlist, format);
+#if WINDOWS
 	vsnprintf_s(&outBuf[0], outBufSize, outBufSize, format, vlist);
+#endif
+#if LINUX
+	vsnprintf(&outBuf[0], outBufSize, format, vlist);
+#endif
+
 	va_end(vlist);
 }
 
 void _szlocaltime(char* outBuf, size_t outBufSize, const char* format)
 {
 	static string timeBuf;
-	static struct tm tmTime;
 
 	auto timeNow = chrono::system_clock().now();
 	time_t _ctime = chrono::system_clock().to_time_t(timeNow);
 
 	const int timeBufMax = 32;
-
+#if WINDOWS
+	static struct tm tmTime;
 	localtime_s(&tmTime, &_ctime);
 	strftime(&timeBuf[0], timeBufMax, format, &tmTime);
+#endif
+#if LINUX
+	struct tm* tmTime;
+	tmTime = localtime(&_ctime); // Convert to local time
+	strftime(&timeBuf[0], timeBufMax, format, tmTime);
+#endif
 
 	_szcpy(outBuf, outBufSize, timeBuf.c_str());
 }
@@ -160,7 +134,12 @@ char* _sztolower(const char* strSrc, char* buf, size_t bufSize)
 
 size_t _szicmp(const char* str0, const char* str1)
 {
+#if WINDOWS
 	return _stricmp(str0, str1);
+#endif
+#if LINUX
+	return strcasecmp(str0, str1);
+#endif
 }
 
 size_t _wszlen(const wchar_t* buf)
@@ -170,17 +149,32 @@ size_t _wszlen(const wchar_t* buf)
 
 void _wszncpy(wchar_t* outBuf, size_t outBufSize, const wchar_t* srcBuf, size_t num)
 {
+#if WINDOWS
 	wcsncpy_s(outBuf, outBufSize, srcBuf, num);
+#endif
+#if LINUX
+	wcsncpy(outBuf, srcBuf, num);
+#endif
 }
 
 void _wszcpy(wchar_t* outBuf, size_t outBufSize, const wchar_t* srcBuf)
 {
+#if WINDOWS
 	wcscpy_s(outBuf, outBufSize, srcBuf);
+#endif
+#if LINUX
+	wcscpy(outBuf, srcBuf);
+#endif
 }
 
 void _wszcat(wchar_t* outBuf, size_t outBufSize, const wchar_t* srcBuf)
 {
+#if WINDOWS
 	wcscat_s(outBuf, outBufSize, srcBuf);
+#endif
+#if LINUX
+	wcscat(outBuf, srcBuf);
+#endif
 }
 
 const size_t gWPrintFBufMax = 2048;
@@ -189,7 +183,13 @@ wchar_t* _wszprintf(const wchar_t* format, ...)
 {
 	va_list vlist;
 	va_start(vlist, format);
+	
+#if WINDOWS
 	_vsnwprintf_s(&gWPrintFBuf[0], gWPrintFBufMax, gWPrintFBufMax, format, vlist);
+#endif
+#if LINUX
+	vswprintf(&gWPrintFBuf[0], gWPrintFBufMax, format, vlist);
+#endif
 	va_end(vlist);
 	return gWPrintFBuf;
 }
@@ -198,7 +198,12 @@ void _wszprintf(wchar_t* outBuf, size_t outBufSize, const wchar_t* format, ...)
 {
 	va_list vlist;
 	va_start(vlist, format);
+#if WINDOWS
 	_vsnwprintf_s(&outBuf[0], outBufSize, outBufSize, format, vlist);
+#endif
+#if LINUX
+	vswprintf(&outBuf[0], outBufSize, format, vlist);
+#endif
 	va_end(vlist);
 }
 
@@ -243,7 +248,13 @@ char* _wsztosz(const wchar_t* source)
 FILE* __fsopen(const char* file, const char* mode)
 {
 	FILE* fp = nullptr;
+#if WINDOWS
 	fopen_s(&fp, file, mode);
+#endif
+#if LINUX
+	fp = fopen(file, mode);
+#endif
+
 	return fp;
 }
 
@@ -280,7 +291,14 @@ void __fsprintf(FILE* fp, const char* format, ...)
 {
 	va_list vlist;
 	va_start(vlist, format);
+	
+	#if WINDOWS
 	vsnprintf_s(&gPrintFBuf[0], gPrintFBufMax, gPrintFBufMax, format, vlist);
+#endif
+#if LINUX
+	vsnprintf(&gPrintFBuf[0], gPrintFBufMax, format, vlist);
+#endif
+
 	va_end(vlist);
 	fputs(gPrintFBuf, fp);
 }
@@ -302,7 +320,7 @@ int __fscreatedir(const char* dir)
 #if WINDOWS	
 	CreateDirectory(dir, NULL);
 #else
-	outBuf[0] = 0;
+
 #endif
 	return 0;
 }

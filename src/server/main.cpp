@@ -11,7 +11,6 @@
 // Includes
 ///////////////////////////////////////////////////////////////////////
 
-#include "../pnet/base64.h"
 #include "../pnet/log.h"
 #include "../pnet/helpers.h"
 #include "../pnet/core.h"

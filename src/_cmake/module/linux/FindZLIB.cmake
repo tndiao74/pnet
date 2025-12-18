@@ -1,0 +1,10 @@
+
+# Project Net
+# Copyright 2025 Tony McCall
+
+set(ZLIB_FOUND TRUE)
+set(ZLIB_INCLUDE_DIR /usr/include)
+set(ZLIB_LINK_LIBRARIES z)
+
+add_library (ZLIB SHARED IMPORTED)
+set_property (TARGET ZLIB PROPERTY IMPORTED_IMPLIB ${ZLIB_LINK_LIBRARIES})

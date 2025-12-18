@@ -15,9 +15,10 @@
 // System Functions
 ///////////////////////////////////////////////////////////////////////
 
-
+/*
 void _GetCurrentDateAndTime(char* outBuf, int outBufSize);
 void _GetCurrentDateAndTimeFile(char* outBuf, int outBufSize);
 void _ConsoleDebugOutput(const char* outBuf);
 int _ConsoleWaitKeyPressed();
 int _ConsolePollKeyPressed();
+*/

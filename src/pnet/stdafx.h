@@ -12,6 +12,7 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <cstring>
 
 #include <stdio.h>
 #include <stdlib.h>
