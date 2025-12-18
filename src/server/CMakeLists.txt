@@ -22,7 +22,7 @@ set (SRCS
 # add in the executable target
 add_executable (${TARGET_NAME} ${SRCS})
 
-target_link_libraries(${TARGET_NAME} pnet)
+target_link_libraries(${TARGET_NAME} pnet ${SSL_LINK_LIBRARIES} ${CRYPTO_LINK_LIBRARIES} ${ZLIB_LINK_LIBRARIES})
 
 # static build
 #target_link_libraries(${TARGET_NAME} -static)
@@ -53,6 +53,17 @@ endif (MSVC)
 #endif()
 
 #target_link_libraries (${TARGET_NAME} ${CGICC_LINK_LIBRARIES})
+
+
+# copy exe to local server
+if(WINDOWS_BUILD)
+	add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+				$<TARGET_FILE:${TARGET_NAME}>        # Source file (the built executable)
+				"C:/Apache24/cgi-bin/pnets" 			 # Destination directory
+		COMMENT "Copying server to server."
+	)
+endif()
 
 # copy resources
 #file(COPY ${CMAKE_SOURCE_DIR}/Edit/icon_container.gif DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

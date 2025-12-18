@@ -1,0 +1,678 @@
+
+// Project Net
+// Copyright 2025 Raw Thrills Inc.
+
+
+// pre-compile header
+#include "stdafx.h"
+
+
+///////////////////////////////////////////////////////////////////////
+// Includes
+///////////////////////////////////////////////////////////////////////
+
+#include "helpers.h"
+
+
+
+///////////////////////////////////////////////////////////////////////
+// Request
+///////////////////////////////////////////////////////////////////////
+
+uint8_t Request::buf[Buf::bufMax] = { 0, };
+size_t Request::bufLen = 0;
+
+void Request::Begin()
+{
+    bufLen = 0;
+}
+
+void Request::Decode(const std::string& param, _requestDecodeEvent cb)
+{
+    size_t paramLen = param.length();
+    if (paramLen <= 0)
+        return;
+
+    // convert entire params to bytes
+    bufLen = Encode::DecodeBase64((uint8_t*)param.c_str(), paramLen, buf, Buf::bufMax);
+    if (bufLen <= 0)
+        return;
+
+    // decompress the bytes
+    Buf::buf0Len = Zip::Inflate(buf, bufLen, Buf::buf0, Buf::bufMax);
+    if (Buf::buf0Len <= 0)
+        return;
+
+    // setup target read buffer
+    size_t rbufLen = Buf::buf0Len;
+    uint8_t* rbuf = Buf::buf0;
+
+    // loop over data
+    size_t rbufOff = 0;
+    int rstate = 0;
+    uint16_t code = 0;
+    uint32_t dataLen = 0;
+    
+    while (rbufOff < rbufLen)
+    {
+        // grab the action code
+        if (rstate == 0)
+        {
+            size_t readLen = sizeof(code);
+            if (rbufOff + readLen > rbufLen)
+                break;
+            code = *((uint16_t*)(rbuf + rbufOff));
+            rbufOff += readLen;
+
+            rstate++;
+        }
+
+        // grab the data len
+        else if (rstate == 1)
+        {
+            size_t readLen = sizeof(dataLen);
+            if (rbufOff + readLen > rbufLen)
+                break;
+            dataLen = *((uint32_t*)(rbuf + rbufOff));
+            rbufOff += readLen;
+
+            // abort if there is not enough data to read
+            if (rbufOff + dataLen > rbufLen)
+                break;
+
+            rstate++;
+        }
+
+        // grab the data
+        else if (rstate == 2)
+        {
+            // convert to string
+            if (rbufOff + dataLen > rbufLen)
+                break;
+
+            // copy request to string
+            memcpy(Buf::buf0, rbuf + rbufOff, dataLen);
+            rbufOff += dataLen;
+            Buf::buf0Len = dataLen;
+            Buf::buf0[dataLen] = 0;
+            std::string strj = (const char*)Buf::buf0;
+
+            // convert to json
+            json j = json::parse(strj);
+
+            // invoke callback
+            if (cb != nullptr)
+            {
+                cb(j, code);
+            }
+
+            // done
+            rstate = 0;
+        }
+
+        // unknown state exit
+        else
+        {
+            return;
+        }
+    }
+}
+
+void Request::Add(const json& data, uint16_t code)
+{
+    // convert to string
+    std::string strj = data.dump().c_str();
+    if (strj.length() <= 0)
+        return;
+
+    // TODO: encrypt bytes
+
+    uint8_t* dataBytes = (uint8_t*)strj.c_str();
+    uint32_t dataLen = (uint32_t)strj.length();
+
+    // append the code
+    size_t clen = sizeof(code);
+    if (bufLen + clen >= Buf::bufMax)
+        return;
+    memcpy(buf + bufLen, &code, clen);
+    bufLen += clen;
+
+    // append the byte length size
+    size_t dataLenSize = sizeof(dataLen);
+    if (bufLen + dataLenSize >= Buf::bufMax)
+        return;
+    memcpy(buf + bufLen, &dataLen, dataLenSize);
+    bufLen += dataLenSize;
+
+    // append data bytes
+    if (bufLen + dataLen >= Buf::bufMax)
+        return; // size check
+    memcpy(buf + bufLen, dataBytes, dataLen);
+    bufLen += dataLen;
+}
+
+std::string Request::End()
+{
+    std::string ret = "";
+
+    // compress bytes
+    Buf::buf0Len = Zip::Deflate(buf, bufLen, Buf::buf0, Buf::bufMax);
+
+    // encode bytes
+    Buf::buf1Len = Encode::EncodeBase64(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax - 1);
+
+    // make string
+    if (Buf::buf1Len > 0)
+    {
+        Buf::buf1[Buf::buf1Len] = 0;
+        ret = (const char*)Buf::buf1;
+    }
+
+    return ret;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// Buf
+///////////////////////////////////////////////////////////////////////
+
+uint8_t Buf::buf0[Buf::bufMax] = { 0, };
+size_t Buf::buf0Len = 0;
+uint8_t Buf::buf1[Buf::bufMax] = { 0, };
+size_t Buf::buf1Len = 0;
+
+
+///////////////////////////////////////////////////////////////////////
+// Encode
+///////////////////////////////////////////////////////////////////////
+
+// Base64 character set
+const int Encode::mod_table[] = { 0, 2, 1 };
+const char Encode::encoding_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+// Base64 decoding table
+const int Encode::b64_decode_table[] = {
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, // 0-15
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, // 16-31
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63, // 32-47 ('+', '/')
+    52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1, // 48-63 ('0'-'9')
+    -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14, // 64-79 ('A'-'O')
+    15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1, // 80-95 ('P'-'Z')
+    -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40, // 96-111 ('a'-'o')
+    41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1  // 112-127 ('p'-'z')
+};
+
+size_t Encode::EncodeBase64(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    size_t outBufLen = 4 * ((bufInLen + 2) / 3); // Calculate required output length
+    if (outBufLen > bufOutMax)
+        return 0;
+
+    for (size_t i = 0, j = 0; i < bufInLen;)
+    {
+        uint32_t octet_a = i < bufInLen ? bufIn[i++] : 0;
+        uint32_t octet_b = i < bufInLen ? bufIn[i++] : 0;
+        uint32_t octet_c = i < bufInLen ? bufIn[i++] : 0;
+
+        uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+
+        bufOut[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+        bufOut[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+        bufOut[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
+        bufOut[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
+    }
+
+    for (int i = 0; i < mod_table[bufInLen % 3]; i++)
+    {
+        bufOut[outBufLen - 1 - i] = '='; // Add padding
+    }
+
+    return outBufLen;
+}
+
+std::string Encode::EncodeBase64(const std::string& bufIn)
+{
+    std::string ret;
+
+    if (bufIn.length() > 0)
+    {
+        size_t len = EncodeBase64((uint8_t*)bufIn.c_str(), bufIn.length() + 1, Buf::buf0, Buf::bufMax);
+        if (len > 0)
+        {
+            ret = (const char*)Buf::buf0;
+        }
+    }
+
+    return ret;
+}
+
+std::string Encode::DecodeBase64(const std::string& bufIn)
+{
+    std::string ret;
+
+    if (bufIn.length() > 0)
+    {
+        size_t len = DecodeBase64((uint8_t*)bufIn.c_str(), bufIn.length() + 1, Buf::buf0, Buf::bufMax);
+        if (len > 0)
+        {
+            ret = (const char*)Buf::buf0;
+        }
+    }
+
+    return ret;
+}
+
+size_t Encode::DecodeBase64(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    size_t i;
+    int val;
+    int bits = 0;
+    int byte_idx = 0;
+    size_t len = 0;
+
+    for (i = 0; i < bufInLen; i++) {
+        char c = bufIn[i];
+        if (c == '=') break; // Padding character
+
+        val = b64_decode_table[(unsigned char)c];
+        if (val == -1) continue; // Invalid character
+
+        bits = (bits << 6) | val;
+        byte_idx++;
+
+        if (byte_idx == 4) {
+            if (bufOutMax < 3) return 0; // Not enough space
+            bufOut[0] = (bits >> 16) & 0xFF;
+            bufOut[1] = (bits >> 8) & 0xFF;
+            bufOut[2] = bits & 0xFF;
+            bufOut += 3;
+            len += 3;
+            bufOutMax -= 3;
+            bits = 0;
+            byte_idx = 0;
+        }
+    }
+
+    // Handle remaining bits (padding)
+    if (byte_idx > 0) {
+        if (byte_idx == 2) { // 1 output byte
+            if (bufOutMax < 1) return 0;
+            bufOut[0] = (bits >> 4) & 0xFF;
+            bufOutMax -= 1;
+            len += 1;
+        }
+        else if (byte_idx == 3) { // 2 output bytes
+            if (bufOutMax < 2) return 0;
+            bufOut[0] = (bits >> 10) & 0xFF;
+            bufOut[1] = (bits >> 2) & 0xFF;
+            bufOutMax -= 2;
+            len += 2;
+        }
+    }
+
+    return len;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// Crypt
+///////////////////////////////////////////////////////////////////////
+
+Crypt::cipherAES Crypt::ctx = { 0, 0 };
+
+size_t Crypt::Init(const unsigned char* key, size_t keyMax, const unsigned char* iv, size_t ivMax)
+{
+    assert(keyMax == 32 && ivMax == 16);
+
+    // wipe out any previous ciphers
+    Destroy();
+
+    // create and initialize the cipher context
+    ctx.e = EVP_CIPHER_CTX_new();
+    if (ctx.e != NULL)
+    {
+        // initialize the encryption operation
+        // Using EVP_CipherInit_ex is recommended for modern OpenSSL
+        EVP_CipherInit_ex(ctx.e, EVP_aes_256_cbc(), NULL, key, iv, 1 /* Encrypt */);
+    }
+    ctx.d = EVP_CIPHER_CTX_new();
+    if (ctx.d != NULL)
+    {
+        // initialize the encryption operation
+        // Using EVP_CipherInit_ex is recommended for modern OpenSSL
+        EVP_CipherInit_ex(ctx.d, EVP_aes_256_cbc(), NULL, key, iv, 0);
+    }
+
+    return 1;
+}
+
+size_t Crypt::Destroy()
+{
+    if (ctx.e != nullptr)
+    {
+        EVP_CIPHER_CTX_free(ctx.e);
+    }
+    if (ctx.d != nullptr)
+    {
+        EVP_CIPHER_CTX_free(ctx.d);
+    }
+    memset(&ctx, 0, sizeof(ctx));
+
+    return 0;
+}
+
+size_t Crypt::Encrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (ctx.e == nullptr || bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    // check size
+    if (bufInLen + EVP_MAX_BLOCK_LENGTH > bufOutMax)
+        return 0;
+
+    // provide the message to be encrypted
+    int outLen = (int)bufOutMax;
+    if (EVP_CipherUpdate(ctx.e, bufOut, &outLen, bufIn, (int)bufInLen) == 1)
+    {
+        int tmpLen = 0;
+        // finalize the encryption (adds padding by default)
+        if (EVP_CipherFinal_ex(ctx.e, bufOut + outLen, &tmpLen) == 1)
+        {
+            return (size_t)tmpLen;
+        }
+    }
+    return 0;
+}
+
+size_t Crypt::Decrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (ctx.d == nullptr || bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    // provide the message to be decrypted
+    int outLen = (int)bufOutMax;
+    if (EVP_CipherUpdate(ctx.d, bufOut, &outLen, bufIn, (int)bufInLen) == 1)
+    {
+        int tmpLen = 0;
+        // finalize the encryption (adds padding by default)
+        if (EVP_CipherFinal_ex(ctx.d, bufOut + outLen, &tmpLen) == 1)
+        {
+            return (size_t)tmpLen;
+        }
+    }
+    return 0;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// CryptPair
+///////////////////////////////////////////////////////////////////////
+
+RSA* CryptPair::rsa = nullptr;
+
+size_t CryptPair::New(std::string& outpub, std::string& outpri)
+{
+    int ret = 0;
+    BIGNUM* bn = nullptr;
+    outpub = "";
+    outpri = "";
+
+    // 1. Generate RSA Keys (2048 bits)
+    bn = BN_new();
+    ret = BN_set_word(bn, RSA_F4); // Common public exponent
+    if (ret != 1) return 0;
+    rsa = RSA_new();
+    ret = RSA_generate_key_ex(rsa, 2048, bn, nullptr);
+    if (ret != 1) return 0;
+    BN_free(bn);
+
+    // 1. Create a memory BIO
+    // 3. Read the data from the BIO into a std::string
+    // BIO_pending returns the number of bytes waiting in the BIO
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (bio != nullptr)
+    {
+        PEM_write_bio_RSA_PUBKEY(bio, rsa);
+        Buf::buf0Len = BIO_pending(bio);
+        BIO_read(bio, Buf::buf0, static_cast<int>(Buf::buf0Len));
+        Buf::buf1Len = Encode::EncodeBase64(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax - 1);
+        if (Buf::buf1Len > 0)
+        {
+            Buf::buf1[Buf::buf1Len] = 0; // null term
+            outpub = (const char*)Buf::buf1;
+        }
+        BIO_free_all(bio);
+    }
+    bio = BIO_new(BIO_s_mem());
+    if (bio != nullptr)
+    {
+        PEM_write_bio_RSAPrivateKey(bio, rsa, NULL, NULL, 0, NULL, NULL);
+        Buf::buf0Len = BIO_pending(bio);
+        BIO_read(bio, Buf::buf0, static_cast<int>(Buf::buf0Len));
+        Buf::buf1Len = Encode::EncodeBase64(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax - 1);
+        if (Buf::buf1Len > 0)
+        {
+            Buf::buf1[Buf::buf1Len] = 0; // null term
+            outpri = (const char*)Buf::buf1;
+        }
+        BIO_free_all(bio);
+    }
+    if (outpub.length() > 0 && outpri.length() > 0)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+size_t CryptPair::Init(const std::string& pub, const std::string& pri)
+{
+    if (pub.length() <= 0 && pri.length() <= 0)
+        return 0;
+
+    Destroy();
+
+    const std::string* sptr = nullptr;
+    if (pub.length() > 0) sptr = &pub;
+    else if (pri.length() > 0) sptr = &pri;
+    if (sptr != nullptr)
+    {
+        BIO* bio = BIO_new(BIO_s_mem());
+        if (bio != nullptr)
+        {
+            std::string dpub = Encode::DecodeBase64(*sptr);
+
+            BIO_puts(bio, dpub.c_str());
+            if(sptr == &pub)
+                PEM_read_bio_RSA_PUBKEY(bio, &rsa, NULL, NULL);
+            else
+                PEM_read_bio_RSAPrivateKey(bio, &rsa, NULL, NULL);
+            BIO_free_all(bio);
+
+            return 1;
+        }
+    }
+    return 0;
+}
+
+size_t CryptPair::Destroy()
+{
+    if (rsa != nullptr)
+    {
+        RSA_free(rsa);
+    }
+    rsa = nullptr;
+
+    return 0;
+}
+
+size_t CryptPair::Encrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (rsa == nullptr || bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    // 2. Allocate memory for encrypted/decrypted data
+    // The encrypted size will be equal to the RSA key size in bytes
+    int elen = RSA_size(rsa);
+    if (elen > bufOutMax)
+        return 0;
+
+    // 3. Encrypt with Public Key (Recommended padding: RSA_PKCS1_OAEP_PADDING)
+    int plen = RSA_public_encrypt((int)bufInLen, bufIn, bufOut, rsa, RSA_PKCS1_OAEP_PADDING);
+    if (plen == -1) {
+        ERR_print_errors_fp(stderr);
+        return 0;
+    }
+
+    return plen;
+}
+
+size_t CryptPair::Decrypt(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (rsa == nullptr || bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    int elen = RSA_size(rsa);
+    if (elen > bufOutMax)
+        return 0;
+
+    size_t plen = RSA_private_decrypt((int)bufInLen, bufIn, bufOut, rsa, RSA_PKCS1_OAEP_PADDING);
+    
+    return plen;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// Zip
+///////////////////////////////////////////////////////////////////////
+
+size_t Zip::Deflate(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    z_stream defstream;
+    defstream.zalloc = Z_NULL;
+    defstream.zfree = Z_NULL;
+    defstream.opaque = Z_NULL;
+
+    // Set up the input and output pointers and sizes
+    defstream.avail_in = static_cast<uInt>(bufInLen);
+    defstream.next_in = reinterpret_cast<Bytef*>(const_cast<uint8_t*>(bufIn));
+
+    // Allocate a buffer. compressBound() can give a safe upper limit
+    defstream.avail_out = static_cast<uInt>(bufOutMax);
+    defstream.next_out = reinterpret_cast<Bytef*>(bufOut);
+
+    // Initialize the compressor with default compression level
+    deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
+
+    // Perform compression
+    // Z_FINISH tells deflate that all input is provided
+    int ret = deflate(&defstream, Z_FINISH);
+
+    if (ret != Z_STREAM_END) {
+        // Handle error here if compression fails before the stream ends
+        deflateEnd(&defstream);
+        return 0;
+    }
+
+    // Clean up
+    deflateEnd(&defstream);
+
+    return defstream.total_out;
+}
+
+size_t Zip::Inflate(const uint8_t* bufIn, size_t bufInLen, uint8_t* bufOut, size_t bufOutMax)
+{
+    if (bufIn == nullptr || bufInLen <= 0 || bufOut == nullptr || bufOutMax < bufInLen)
+        return 0;
+
+    z_stream strm = { 0 };
+    // Initialize the stream structure
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+
+    // Set up input buffer
+    strm.avail_in = static_cast<uInt>(bufInLen);
+    strm.next_in = const_cast<Bytef*>(bufIn);
+
+    // Set up output buffer (must be pre-allocated with sufficient size)
+    // In a real-world scenario, you might need a loop to dynamically grow this buffer.
+    strm.avail_out = static_cast<uInt>(bufOutMax);
+    strm.next_out = bufOut;
+
+    // Initialize the inflate operation. The (15 + 32) window bits parameter 
+    // tells zlib to automatically detect gzip or zlib format headers.
+    int ret = inflateInit2(&strm, (15 + 32));
+    if (ret == Z_OK)
+    {
+        // Perform the decompression in a single call (assuming buffers are large enough)
+        ret = inflate(&strm, Z_FINISH);
+        if (ret == Z_STREAM_END)
+        {
+            // Clean up the stream
+            inflateEnd(&strm);
+
+            // Resize the output data to the actual decompressed size
+            return strm.total_out;
+        }
+    }
+
+    // Clean up the stream
+    inflateEnd(&strm);
+
+    return 0;
+}
+
+
+///////////////////////////////////////////////////////////////////////
+// JSON
+///////////////////////////////////////////////////////////////////////
+
+std::string JSON::CompressAndEncode(const json& j)
+{
+    std::string ret;
+
+    size_t byteSize = j.dump().length();
+    Buf::buf0Len = Zip::Deflate((uint8_t*)j.dump().c_str(), byteSize, Buf::buf0, Buf::bufMax);
+    if (Buf::buf0Len > 0)
+    {
+        Buf::buf1Len = Encode::EncodeBase64(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax);
+        if (Buf::buf1Len > 0 && Buf::buf1Len < Buf::bufMax - 1)
+        {
+            // null term base 64 string
+            Buf::buf1[Buf::buf1Len] = 0;
+            ret = (const char*)Buf::buf1;
+        }
+    }
+    return ret;
+}
+
+json JSON::DecodeAndUncompress(const std::string bufIn)
+{
+    json j;
+
+    Buf::buf0Len = Encode::DecodeBase64((uint8_t*)bufIn.c_str(), bufIn.length(), Buf::buf0, Buf::bufMax);
+    if (Buf::buf0Len > 0)
+    {
+        Buf::buf1Len = Zip::Inflate(Buf::buf0, Buf::buf0Len, Buf::buf1, Buf::bufMax);
+        if (Buf::buf1Len > 0 && Buf::buf1Len < Buf::bufMax - 1)
+        {
+            // null term base 64 string
+            Buf::buf1[Buf::buf1Len] = 0;
+            std::string str = (const char*)Buf::buf1;
+            printf("\n%s\n", str.c_str());
+
+            j = json::parse(str);
+        }
+    }
+    return j;
+}

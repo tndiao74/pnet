@@ -31,7 +31,7 @@ add_executable (${TARGET_NAME} ${SRCS})
 
 # libraries
 if(WINDOWS_BUILD)
-	target_link_libraries(${TARGET_NAME} pnet ${CURL_LINK_LIBRARIES})
+	target_link_libraries(${TARGET_NAME} pnet ${SSL_LINK_LIBRARIES} ${CRYPTO_LINK_LIBRARIES} ${ZLIB_LINK_LIBRARIES})
 endif()
 if(LINUX_BUILD)
 	target_link_libraries(${TARGET_NAME} pnet curl ssl crypto)

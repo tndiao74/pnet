@@ -12,6 +12,14 @@ set (SRCS
 	stdafx.cpp
 	base64.h
 	base64.cpp
+	helpers.h
+	helpers.cpp
+	log.h
+	log.cpp
+	core.h
+	core.cpp
+	system.h
+	system.cpp
 )
 
 

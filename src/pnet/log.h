@@ -12,9 +12,9 @@
 
 
 //////////////////////////////////////////////////////////////////////////
-// base64
+// log
 //////////////////////////////////////////////////////////////////////////
 
-char* base64_encode(const char* data, size_t bufMax, char* buf);
+void _log(const char* msg, ...);
 size_t base64_decode(const char* encoded_data, size_t encoded_len, unsigned char* decoded_data, size_t decoded_max_len);
 

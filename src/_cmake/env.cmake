@@ -90,9 +90,18 @@ include_directories (${NLOHMANN_JSON_INCLUDE_DIR})
 #find_package(zlib REQUIRED)
 #include_directories (${ZLIB_INCLUDE_DIR})
 #
-## CURL
+# CURL
 find_package(CURL REQUIRED)
 include_directories (${CURL_INCLUDE_DIR})
+
+# OpenSSL
+find_package(SSL REQUIRED)
+find_package(CRYPTO REQUIRED)
+include_directories (${SSL_INCLUDE_DIR})
+
+# zlib
+find_package(ZLIB REQUIRED)
+include_directories (${ZLIB_INCLUDE_DIR})
 
 # sudo apt install openssl libssl-dev
 # sudo apt install libcurl4-openssl-dev
