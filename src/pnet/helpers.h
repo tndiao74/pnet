@@ -21,7 +21,7 @@ class Buf
 public:
 
     // string buffers
-    static const size_t bufMax = 4096;
+    static const size_t bufMax = 8192;
     static uint8_t buf0[bufMax];
     static size_t buf0Len;
     static uint8_t buf1[bufMax];
@@ -183,20 +183,6 @@ class System
 {
     // data
 private:
-#if WINDOWS
-    static HANDLE g_hChildStd_IN_Rd;
-    static HANDLE g_hChildStd_IN_Wr;
-    static HANDLE g_hChildStd_OUT_Rd;
-    static HANDLE g_hChildStd_OUT_Wr;
-    static HANDLE g_hInputFile;
-    static const size_t BUFSIZE = 4096;
-    static CHAR chBuf[BUFSIZE];
-
-    static void CreateChildProcess(const std::string& cmd);
-    static void WriteToPipe(void);
-    static void ReadFromPipe(std::string& result);
-    static void ErrorExit(PCTSTR);
-#endif
 
 public:
     static std::string exec(const std::string& cmd);
