@@ -28,21 +28,23 @@ void Request::Begin()
     bufLen = 0;
 }
 
-void Request::Decode(const std::string& param, _requestDecodeEvent cb)
+std::string Request::Decode(const std::string& param, _requestDecodeEvent cb)
 {
+    std::string response = "";
+
     size_t paramLen = param.length();
     if (paramLen <= 0)
-        return;
+        return response;
 
     // convert entire params to bytes
     bufLen = Encode::DecodeBase64((uint8_t*)param.c_str(), paramLen, buf, Buf::bufMax);
     if (bufLen <= 0)
-        return;
+        return response;
 
     // decompress the bytes
     Buf::buf0Len = Zip::Inflate(buf, bufLen, Buf::buf0, Buf::bufMax);
     if (Buf::buf0Len <= 0)
-        return;
+        return response;
 
     // setup target read buffer
     size_t rbufLen = Buf::buf0Len;
@@ -104,7 +106,7 @@ void Request::Decode(const std::string& param, _requestDecodeEvent cb)
             // invoke callback
             if (cb != nullptr)
             {
-                cb(j, code);
+                response += cb(j, code);
             }
 
             // done
@@ -114,9 +116,10 @@ void Request::Decode(const std::string& param, _requestDecodeEvent cb)
         // unknown state exit
         else
         {
-            return;
+            return response;
         }
     }
+    return response;
 }
 
 void Request::Add(const json& data, uint16_t code)

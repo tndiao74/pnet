@@ -87,5 +87,9 @@ include_directories (${SSL_INCLUDE_DIR})
 find_package(ZLIB REQUIRED)
 include_directories (${ZLIB_INCLUDE_DIR})
 
+# aws
+find_package(AWS REQUIRED)
+include_directories (${AWS_INCLUDE_DIR})
+
 # sudo apt install openssl libssl-dev
 # sudo apt install libcurl4-openssl-dev

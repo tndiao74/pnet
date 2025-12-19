@@ -140,7 +140,7 @@ public:
 // Request
 ///////////////////////////////////////////////////////////////////////
 
-typedef void(*_requestDecodeEvent)(const json& j, uint16_t code);
+typedef std::string (*_requestDecodeEvent)(const json& j, uint16_t code);
 
 class Request
 {
@@ -153,7 +153,7 @@ public:
     static void Begin();
     static void Add(const json& data, uint16_t code);
     static std::string End();
-    static void Decode(const std::string& param, _requestDecodeEvent cb = nullptr);
+    static std::string Decode(const std::string& param, _requestDecodeEvent cb = nullptr);
     static std::string EncryptPairAndEncode(const std::string& keyPub, const std::string& str);
     static std::string DecodeAndDecryptPair(const std::string& keyPri, const std::string& str);
     static std::string EncryptAndEncode(const std::string& key, const std::string& str);
