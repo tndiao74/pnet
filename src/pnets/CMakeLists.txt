@@ -33,7 +33,7 @@ endif (MSVC)
 # libraries
 #######################################################################
 
-target_link_libraries(${TARGET_NAME} pnet ${SSL_LINK_LIBRARIES} ${CRYPTO_LINK_LIBRARIES} ${ZLIB_LINK_LIBRARIES} ${AWS_LINK_LIBRARIES})
+target_link_libraries(${TARGET_NAME} pnet aws-cpp-sdk-core aws-cpp-sdk-s3 ${SSL_LINK_LIBRARIES} ${CRYPTO_LINK_LIBRARIES} ${ZLIB_LINK_LIBRARIES})
 
 # copy exe to local server
 if(WINDOWS_BUILD)

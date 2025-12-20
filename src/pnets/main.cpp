@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
 #endif
 
     _log("pnet server invoke instance");
-
+#if 1
     //The Aws::SDKOptions struct contains SDK configuration options.
     //An instance of Aws::SDKOptions is passed to the Aws::InitAPI and 
     //Aws::ShutdownAPI methods. The same instance should be sent to both methods.
@@ -131,8 +131,14 @@ int main(int argc, char* argv[])
     Aws::InitAPI(options);
 
     // access token
+#if WINDOWS
     _putenv("AWS_ACCESS_KEY_ID=AKIASPGS5NSIFAYZGKGT");
     _putenv("AWS_SECRET_ACCESS_KEY=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");
+#endif
+#if LINUX
+    putenv("AWS_ACCESS_KEY_ID=AKIASPGS5NSIFAYZGKGT");
+    putenv("AWS_SECRET_ACCESS_KEY=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");
+#endif
 
     // You don't normally have to test that you are authenticated. But the S3 service permits anonymous requests
     // thus the s3Client will return "success" and 0 buckets even if you are unauthenticated, which can be confusing to a new user.
@@ -142,7 +148,7 @@ int main(int argc, char* argv[])
     {
         printf("Authentication failed.\n");
         Aws::ShutdownAPI(options);
-        _getch();
+        //_getch();
         return -1;
     }
 
@@ -155,7 +161,7 @@ int main(int argc, char* argv[])
 
     // list buckets
     ListBuckets(s3Client);
-
+#endif
     printf("Content-type: text/html\n\n"); // Required HTTP header
 
     const char* queryString = std::getenv("QUERY_STRING");
@@ -182,11 +188,12 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-#if 1
+
 void ListBuckets(const Aws::S3::S3Client& s3Client)
 {
     // list buckets
     Aws::S3::Model::ListBucketsOutcome outcome = s3Client.ListBuckets();
+#if 1
     if (!outcome.IsSuccess())
     {
         printf("Failed with error: %s\n", outcome.GetError().GetMessage().c_str());
@@ -199,8 +206,9 @@ void ListBuckets(const Aws::S3::S3Client& s3Client)
             printf("Name: %s\n", bucket.GetName().c_str());
         }
     }
+#endif
 }
-
+#if 0
 void UploadFile(const Aws::S3::S3Client& s3Client, const std::string uploadFile, const std::string bucketName, const std::string objectKey)
 {
     // try and open the upload file
@@ -261,6 +269,7 @@ void DownloadFile(const Aws::S3::S3Client& s3Client, const std::string saveFile,
 
 const char* MakeGUID(char* outGuidStr, int outGuidStrMax)
 {
+#if WINDOWS
     GUID guid;
     HRESULT hr = CoCreateGuid(&guid);
     if (outGuidStrMax >= 39) // 36 characters for GUID + 2 for hyphens + 1 for null terminator
@@ -272,5 +281,9 @@ const char* MakeGUID(char* outGuidStr, int outGuidStrMax)
             guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
     }
     return outGuidStr;
+#endif
+#if LINUX
+	return "";
+#endif
 }
 #endif

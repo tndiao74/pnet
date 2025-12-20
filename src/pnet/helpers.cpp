@@ -886,6 +886,15 @@ std::string System::exec(const std::string& cmd)
     return res;
 }
 
+#endif
+
+#if LINUX
+std::string System::exec(const std::string& cmd)
+{
+	return "";
+}
+#endif
+
 std::vector<std::string> System::tokenize_whitespace(const std::string& str)
 {
     std::vector<std::string> tokens;
